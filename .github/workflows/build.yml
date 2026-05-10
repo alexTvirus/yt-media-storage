@@ -79,7 +79,10 @@ jobs:
             libxcb-xfixes0-dev libxcb-xkb-dev libxcb-render0-dev libxcb-glx0-dev \
             libgl1-mesa-dev libglu1-mesa-dev libfontconfig1-dev libfreetype6-dev \
             libdbus-1-dev libxext-dev libxfixes-dev libxi-dev libxrender-dev \
-            libx11-xcb-dev libsm-dev libice-dev
+            libx11-xcb-dev libsm-dev libice-dev \
+            libegl-dev libgles-dev libopengl-dev libwayland-dev wayland-protocols \
+            libxcomposite-dev libxcursor-dev libxdamage-dev libxinerama-dev \
+            libxshmfence-dev libxtst-dev libxss-dev libinput-dev libmtdev-dev
 
       - name: Install macOS deps
         if: runner.os == 'macOS'
@@ -106,25 +109,22 @@ jobs:
       - name: Bootstrap vcpkg
         shell: bash
         run: |
-          if [ ! -d "$HOME/vcpkg" ]; then
-            git clone --depth=1 https://github.com/microsoft/vcpkg.git "$HOME/vcpkg"
+          BASELINE=$(awk -F'"' '/builtin-baseline/ {print $4}' vcpkg.json)
+          if [ "$BASELINE" = "REPLACE_WITH_VCPKG_COMMIT_HASH" ]; then
+            echo "::error::vcpkg.json builtin-baseline is unset. Pin it to a real vcpkg commit hash."
+            exit 1
           fi
+          if [ ! -d "$HOME/vcpkg/.git" ]; then
+            git clone https://github.com/microsoft/vcpkg.git "$HOME/vcpkg"
+          fi
+          git -C "$HOME/vcpkg" fetch --depth=1 origin "$BASELINE"
+          git -C "$HOME/vcpkg" checkout "$BASELINE"
           if [ "$RUNNER_OS" = "Windows" ]; then
             "$HOME/vcpkg/bootstrap-vcpkg.bat" -disableMetrics
           else
             "$HOME/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
           fi
           echo "VCPKG_ROOT=$HOME/vcpkg" >> "$GITHUB_ENV"
-
-      - name: Install dependencies via vcpkg
-        shell: bash
-        run: |
-          "$VCPKG_ROOT/vcpkg" install \
-            'ffmpeg[core,avcodec,avformat,avfilter,swscale,swresample,x264]' \
-            libsodium \
-            qtbase \
-            --triplet=${{ matrix.triplet }} \
-            --recurse
 
       - name: Configure
         shell: bash
@@ -133,6 +133,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
             -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
+            -DVCPKG_MANIFEST_MODE=ON \
             -DMEDIA_STORAGE_STATIC_BINARIES=ON \
             -DBUILD_TESTS=OFF
 
