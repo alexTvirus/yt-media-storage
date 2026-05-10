@@ -55,12 +55,14 @@ target_sources(media_storage PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
 )
 
-target_sources(media_storage_gui PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/drive_manager_ui.h"
-        "${CMAKE_CURRENT_SOURCE_DIR}/drive_manager_ui.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/main_gui.cpp"
-)
+if (BUILD_GUI)
+    target_sources(media_storage_gui PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/drive_manager_ui.h"
+            "${CMAKE_CURRENT_SOURCE_DIR}/drive_manager_ui.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/main_gui.cpp"
+    )
 
-target_include_directories(media_storage_gui PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}"
-)
+    target_include_directories(media_storage_gui PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+endif ()

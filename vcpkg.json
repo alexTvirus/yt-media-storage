@@ -15,31 +15,38 @@
         "x264"
       ]
     },
-    "libsodium",
-    {
-      "name": "qtbase",
-      "default-features": false,
-      "features": [
-        "gui",
-        "widgets",
-        "png",
-        "freetype",
-        "harfbuzz"
+    "libsodium"
+  ],
+  "features": {
+    "gui": {
+      "description": "Qt GUI dependencies (qtbase). Disable to use system Qt.",
+      "dependencies": [
+        {
+          "name": "qtbase",
+          "default-features": false,
+          "features": [
+            "gui",
+            "widgets",
+            "png",
+            "freetype",
+            "harfbuzz"
+          ]
+        },
+        {
+          "name": "qtbase",
+          "default-features": false,
+          "features": [
+            "fontconfig",
+            "xcb",
+            "xcb-xlib",
+            "xkb",
+            "xkbcommon-x11",
+            "xrender",
+            "xlib"
+          ],
+          "platform": "linux"
+        }
       ]
-    },
-    {
-      "name": "qtbase",
-      "default-features": false,
-      "features": [
-        "fontconfig",
-        "xcb",
-        "xcb-xlib",
-        "xkb",
-        "xkbcommon-x11",
-        "xrender",
-        "xlib"
-      ],
-      "platform": "linux"
     }
-  ]
+  }
 }

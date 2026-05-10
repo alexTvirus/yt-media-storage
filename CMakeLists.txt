@@ -20,9 +20,15 @@ project(media_storage LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(BUILD_TESTS "Build test suite" OFF)
+option(MEDIA_STORAGE_STATIC_BINARIES "Build fully static executables" OFF)
+option(BUILD_GUI "Build the Qt GUI executable" ON)
+
 find_package(PkgConfig REQUIRED)
 find_package(OpenMP REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
+if (BUILD_GUI)
+    find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
+endif ()
 
 # Enable Qt MOC, UIC, and RCC for GUI only
 set(CMAKE_AUTOMOC OFF)
@@ -46,9 +52,6 @@ set(CORE_LINK_LIBS
         OpenMP::OpenMP_CXX
 )
 
-option(BUILD_TESTS "Build test suite" OFF)
-option(MEDIA_STORAGE_STATIC_BINARIES "Build fully static executables" OFF)
-
 add_library(media_storage_core STATIC)
 set_target_properties(media_storage_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -60,12 +63,14 @@ else ()
 endif ()
 
 add_executable(media_storage)
-add_executable(media_storage_gui)
+if (BUILD_GUI)
+    add_executable(media_storage_gui)
+endif ()
 add_subdirectory(src)
 
 target_link_libraries(media_storage_core PUBLIC ${CORE_LINK_LIBS})
 
-target_link_libraries(media_storage_lib PRIVATE media_storage_core)
+target_link_libraries(media_storage_lib PRIVATE $<BUILD_INTERFACE:media_storage_core>)
 target_include_directories(media_storage_lib PUBLIC
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
@@ -77,27 +82,37 @@ set_target_properties(media_storage_lib PROPERTIES
 )
 
 target_link_libraries(media_storage PRIVATE media_storage_lib)
-target_link_libraries(media_storage_gui PRIVATE
-        media_storage_lib
-        Qt6::Core
-        Qt6::Widgets
-)
+if (BUILD_GUI)
+    target_link_libraries(media_storage_gui PRIVATE
+            media_storage_lib
+            Qt6::Core
+            Qt6::Widgets
+    )
+endif ()
 
 if (MEDIA_STORAGE_STATIC_BINARIES)
     if (NOT MSVC AND NOT APPLE)
         target_link_options(media_storage PRIVATE -static-libgcc -static-libstdc++)
-        target_link_options(media_storage_gui PRIVATE -static-libgcc -static-libstdc++)
+        if (BUILD_GUI)
+            target_link_options(media_storage_gui PRIVATE -static-libgcc -static-libstdc++)
+        endif ()
     endif ()
     if (MSVC)
-        set_property(TARGET media_storage_core media_storage_lib media_storage media_storage_gui
+        set(_msvc_static_targets media_storage_core media_storage_lib media_storage)
+        if (BUILD_GUI)
+            list(APPEND _msvc_static_targets media_storage_gui)
+        endif ()
+        set_property(TARGET ${_msvc_static_targets}
                 PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
     endif ()
-    if (COMMAND qt_finalize_executable)
+    if (BUILD_GUI AND COMMAND qt_finalize_executable)
         qt_finalize_executable(media_storage_gui)
     endif ()
 endif ()
 
-set_target_properties(media_storage_gui PROPERTIES AUTOMOC ON AUTOUIC ON)
+if (BUILD_GUI)
+    set_target_properties(media_storage_gui PROPERTIES AUTOMOC ON AUTOUIC ON)
+endif ()
 if (MSVC)
     set(_msvc_arch_flags "")
     if (CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64|X86|x86|i[36]86")
@@ -107,16 +122,20 @@ if (MSVC)
             $<$<CONFIG:Release>:/O2>
             ${_msvc_arch_flags}
     )
-    target_compile_options(media_storage_gui PRIVATE
-            $<$<CONFIG:Release>:/O2>
-            ${_msvc_arch_flags}
-    )
+    if (BUILD_GUI)
+        target_compile_options(media_storage_gui PRIVATE
+                $<$<CONFIG:Release>:/O2>
+                ${_msvc_arch_flags}
+        )
+    endif ()
 else ()
     target_compile_options(media_storage_core PRIVATE -march=native)
-    if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|i386")
-        target_compile_options(media_storage_gui PRIVATE -O2 -mssse3)
-    else ()
-        target_compile_options(media_storage_gui PRIVATE -O2 -march=native)
+    if (BUILD_GUI)
+        if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|i386")
+            target_compile_options(media_storage_gui PRIVATE -O2 -mssse3)
+        else ()
+            target_compile_options(media_storage_gui PRIVATE -O2 -march=native)
+        endif ()
     endif ()
 endif ()
 

@@ -24,36 +24,50 @@ jobs:
             triplet: x64-linux
             msvc_arch: ''
             archive_ext: tar.gz
+            build_gui: 'ON'
+            qt_source: 'vcpkg'
           - name: linux-arm64
             os: ubuntu-22.04-arm
             triplet: arm64-linux
             msvc_arch: ''
             archive_ext: tar.gz
+            build_gui: 'ON'
+            qt_source: 'system'
           - name: windows-x64
             os: windows-2022
             triplet: x64-windows-static
             msvc_arch: x64
             archive_ext: zip
+            build_gui: 'ON'
+            qt_source: 'vcpkg'
           - name: windows-x86
             os: windows-2022
             triplet: x86-windows-static
             msvc_arch: x86
             archive_ext: zip
+            build_gui: 'ON'
+            qt_source: 'vcpkg'
           - name: windows-arm64
             os: windows-11-arm
             triplet: arm64-windows-static
             msvc_arch: arm64
             archive_ext: zip
+            build_gui: 'ON'
+            qt_source: 'vcpkg'
           - name: macos-x64
             os: macos-13
             triplet: x64-osx
             msvc_arch: ''
             archive_ext: tar.gz
+            build_gui: 'ON'
+            qt_source: 'vcpkg'
           - name: macos-arm64
             os: macos-14
             triplet: arm64-osx
             msvc_arch: ''
             archive_ext: tar.gz
+            build_gui: 'ON'
+            qt_source: 'vcpkg'
 
     steps:
       - uses: actions/checkout@v4
@@ -84,6 +98,11 @@ jobs:
             libegl-dev libgles-dev libopengl-dev libwayland-dev wayland-protocols \
             libxcomposite-dev libxcursor-dev libxdamage-dev libxinerama-dev \
             libxshmfence-dev libxtst-dev libxss-dev libinput-dev libmtdev-dev
+
+      - name: Install system Qt6 (Linux ARM64)
+        if: matrix.qt_source == 'system'
+        run: |
+          sudo apt-get install -y qt6-base-dev qt6-base-dev-tools libqt6opengl6-dev
 
       - name: Install macOS deps
         if: runner.os == 'macOS'
@@ -130,12 +149,18 @@ jobs:
       - name: Configure
         shell: bash
         run: |
+          MANIFEST_FEATURES=""
+          if [ "${{ matrix.build_gui }}" = "ON" ] && [ "${{ matrix.qt_source }}" = "vcpkg" ]; then
+            MANIFEST_FEATURES="gui"
+          fi
           cmake -B build -S . -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
             -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
             -DVCPKG_MANIFEST_MODE=ON \
+            -DVCPKG_MANIFEST_FEATURES="$MANIFEST_FEATURES" \
             -DMEDIA_STORAGE_STATIC_BINARIES=ON \
+            -DBUILD_GUI=${{ matrix.build_gui }} \
             -DBUILD_TESTS=OFF
 
       - name: Build
@@ -147,11 +172,15 @@ jobs:
         run: |
           mkdir -p dist
           if [ "$RUNNER_OS" = "Windows" ]; then
-            cp build/media_storage.exe     dist/
-            cp build/media_storage_gui.exe dist/
+            cp build/media_storage.exe dist/
+            if [ "${{ matrix.build_gui }}" = "ON" ]; then
+              cp build/media_storage_gui.exe dist/
+            fi
           else
-            cp build/media_storage     dist/
-            cp build/media_storage_gui dist/
+            cp build/media_storage dist/
+            if [ "${{ matrix.build_gui }}" = "ON" ]; then
+              cp build/media_storage_gui dist/
+            fi
           fi
           cp README.md LICENSE.txt dist/ 2>/dev/null || true
           ls -la dist/
