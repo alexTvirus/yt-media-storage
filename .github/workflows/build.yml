@@ -1,0 +1,177 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+env:
+  VCPKG_BINARY_SOURCES: 'clear;x-gha,readwrite'
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            os: ubuntu-22.04
+            triplet: x64-linux
+            msvc_arch: ''
+            archive_ext: tar.gz
+          - name: linux-arm64
+            os: ubuntu-22.04-arm
+            triplet: arm64-linux
+            msvc_arch: ''
+            archive_ext: tar.gz
+          - name: windows-x64
+            os: windows-2022
+            triplet: x64-windows-static
+            msvc_arch: x64
+            archive_ext: zip
+          - name: windows-x86
+            os: windows-2022
+            triplet: x86-windows-static
+            msvc_arch: x86
+            archive_ext: zip
+          - name: windows-arm64
+            os: windows-11-arm
+            triplet: arm64-windows-static
+            msvc_arch: arm64
+            archive_ext: zip
+          - name: macos-x64
+            os: macos-13
+            triplet: x64-osx
+            msvc_arch: ''
+            archive_ext: tar.gz
+          - name: macos-arm64
+            os: macos-14
+            triplet: arm64-osx
+            msvc_arch: ''
+            archive_ext: tar.gz
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Export GitHub Actions cache env
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Install Linux system deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ninja-build nasm yasm autoconf automake libtool pkg-config \
+            libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-cursor-dev \
+            libxcb-icccm4-dev libxcb-image0-dev libxcb-keysyms1-dev libxcb-randr0-dev \
+            libxcb-render-util0-dev libxcb-shape0-dev libxcb-sync-dev libxcb-util-dev \
+            libxcb-xfixes0-dev libxcb-xkb-dev libxcb-render0-dev libxcb-glx0-dev \
+            libgl1-mesa-dev libglu1-mesa-dev libfontconfig1-dev libfreetype6-dev \
+            libdbus-1-dev libxext-dev libxfixes-dev libxi-dev libxrender-dev \
+            libx11-xcb-dev libsm-dev libice-dev
+
+      - name: Install macOS deps
+        if: runner.os == 'macOS'
+        run: |
+          brew install ninja nasm yasm automake autoconf libtool pkg-config libomp
+          LIBOMP_PREFIX="$(brew --prefix libomp)"
+          {
+            echo "OpenMP_ROOT=${LIBOMP_PREFIX}"
+            echo "CMAKE_PREFIX_PATH=${LIBOMP_PREFIX}"
+            echo "LDFLAGS=-L${LIBOMP_PREFIX}/lib"
+            echo "CPPFLAGS=-I${LIBOMP_PREFIX}/include"
+          } >> "$GITHUB_ENV"
+
+      - name: Set up MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc_arch }}
+
+      - name: Install Ninja (Windows)
+        if: runner.os == 'Windows'
+        uses: seanmiddleditch/gha-setup-ninja@v5
+
+      - name: Bootstrap vcpkg
+        shell: bash
+        run: |
+          if [ ! -d "$HOME/vcpkg" ]; then
+            git clone --depth=1 https://github.com/microsoft/vcpkg.git "$HOME/vcpkg"
+          fi
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            "$HOME/vcpkg/bootstrap-vcpkg.bat" -disableMetrics
+          else
+            "$HOME/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
+          fi
+          echo "VCPKG_ROOT=$HOME/vcpkg" >> "$GITHUB_ENV"
+
+      - name: Install dependencies via vcpkg
+        shell: bash
+        run: |
+          "$VCPKG_ROOT/vcpkg" install \
+            'ffmpeg[core,avcodec,avformat,avfilter,swscale,swresample,x264]' \
+            libsodium \
+            qtbase \
+            --triplet=${{ matrix.triplet }} \
+            --recurse
+
+      - name: Configure
+        shell: bash
+        run: |
+          cmake -B build -S . -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
+            -DMEDIA_STORAGE_STATIC_BINARIES=ON \
+            -DBUILD_TESTS=OFF
+
+      - name: Build
+        shell: bash
+        run: cmake --build build --parallel
+
+      - name: Stage artifacts
+        shell: bash
+        run: |
+          mkdir -p dist
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp build/media_storage.exe     dist/
+            cp build/media_storage_gui.exe dist/
+          else
+            cp build/media_storage     dist/
+            cp build/media_storage_gui dist/
+          fi
+          cp README.md LICENSE.txt dist/ 2>/dev/null || true
+          ls -la dist/
+
+      - name: Archive (zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/* -DestinationPath "media_storage-${{ matrix.name }}.zip"
+
+      - name: Archive (tar.gz)
+        if: runner.os != 'Windows'
+        run: tar -czf "media_storage-${{ matrix.name }}.tar.gz" -C dist .
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: media_storage-${{ matrix.name }}
+          path: media_storage-${{ matrix.name }}.${{ matrix.archive_ext }}
+          if-no-files-found: error
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: media_storage-${{ matrix.name }}.${{ matrix.archive_ext }}

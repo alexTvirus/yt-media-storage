@@ -47,12 +47,17 @@ set(CORE_LINK_LIBS
 )
 
 option(BUILD_TESTS "Build test suite" OFF)
+option(MEDIA_STORAGE_STATIC_BINARIES "Build fully static executables" OFF)
 
 add_library(media_storage_core STATIC)
 set_target_properties(media_storage_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-add_library(media_storage_lib SHARED)
-target_compile_definitions(media_storage_lib PRIVATE MEDIA_STORAGE_BUILD_SHARED)
+if (MEDIA_STORAGE_STATIC_BINARIES)
+    add_library(media_storage_lib STATIC)
+else ()
+    add_library(media_storage_lib SHARED)
+    target_compile_definitions(media_storage_lib PRIVATE MEDIA_STORAGE_BUILD_SHARED)
+endif ()
 
 add_executable(media_storage)
 add_executable(media_storage_gui)
@@ -78,15 +83,33 @@ target_link_libraries(media_storage_gui PRIVATE
         Qt6::Widgets
 )
 
+if (MEDIA_STORAGE_STATIC_BINARIES)
+    if (NOT MSVC AND NOT APPLE)
+        target_link_options(media_storage PRIVATE -static-libgcc -static-libstdc++)
+        target_link_options(media_storage_gui PRIVATE -static-libgcc -static-libstdc++)
+    endif ()
+    if (MSVC)
+        set_property(TARGET media_storage_core media_storage_lib media_storage media_storage_gui
+                PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    endif ()
+    if (COMMAND qt_finalize_executable)
+        qt_finalize_executable(media_storage_gui)
+    endif ()
+endif ()
+
 set_target_properties(media_storage_gui PROPERTIES AUTOMOC ON AUTOUIC ON)
 if (MSVC)
+    set(_msvc_arch_flags "")
+    if (CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64|X86|x86|i[36]86")
+        set(_msvc_arch_flags "/arch:AVX2")
+    endif ()
     target_compile_options(media_storage_core PRIVATE
             $<$<CONFIG:Release>:/O2>
-            /arch:AVX2
+            ${_msvc_arch_flags}
     )
     target_compile_options(media_storage_gui PRIVATE
             $<$<CONFIG:Release>:/O2>
-            /arch:AVX2
+            ${_msvc_arch_flags}
     )
 else ()
     target_compile_options(media_storage_core PRIVATE -march=native)

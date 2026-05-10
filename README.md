@@ -29,9 +29,8 @@ them back to the original file. Supports both a command-line interface and a gra
 
 ## CI/CD Pipeline
 
-Visit my [CI/CD pipeline](https://ci.brandonli.me), and click "Login as Guest". Visit the yt-media-storage project,
-click on the latest passing build, and click "Artifacts" to download the latest build artifacts for both the CLI and
-GUI. You may need to install some shared libraries (FFmpeg, Qt6, libsodium) to run the executables.
+Visit GitHub Actions [CI/CD pipeline](https://github.com/PulseBeat02/yt-media-storage/actions), and click to download
+artifacts.
 
 ## Requirements
 
