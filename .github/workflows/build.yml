@@ -72,7 +72,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            ninja-build nasm yasm autoconf automake libtool pkg-config \
+            ninja-build nasm yasm autoconf autoconf-archive automake libtool pkg-config \
             libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-cursor-dev \
             libxcb-icccm4-dev libxcb-image0-dev libxcb-keysyms1-dev libxcb-randr0-dev \
             libxcb-render-util0-dev libxcb-shape0-dev libxcb-sync-dev libxcb-util-dev \
@@ -84,7 +84,7 @@ jobs:
       - name: Install macOS deps
         if: runner.os == 'macOS'
         run: |
-          brew install ninja nasm yasm automake autoconf libtool pkg-config libomp
+          brew install ninja nasm yasm automake autoconf autoconf-archive libtool pkg-config libomp
           LIBOMP_PREFIX="$(brew --prefix libomp)"
           {
             echo "OpenMP_ROOT=${LIBOMP_PREFIX}"
