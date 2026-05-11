@@ -23,49 +23,42 @@ jobs:
             os: ubuntu-22.04
             triplet: x64-linux
             msvc_arch: ''
-            archive_ext: tar.gz
             build_gui: 'ON'
             qt_source: 'vcpkg'
           - name: linux-arm64
             os: ubuntu-22.04-arm
             triplet: arm64-linux
             msvc_arch: ''
-            archive_ext: tar.gz
             build_gui: 'ON'
             qt_source: 'system'
           - name: windows-x64
             os: windows-2022
             triplet: x64-windows-static
             msvc_arch: x64
-            archive_ext: zip
             build_gui: 'ON'
             qt_source: 'vcpkg'
           - name: windows-x86
             os: windows-2022
             triplet: x86-windows-static
             msvc_arch: x86
-            archive_ext: zip
             build_gui: 'ON'
             qt_source: 'vcpkg'
           - name: windows-arm64
             os: windows-11-arm
             triplet: arm64-windows-static
             msvc_arch: arm64
-            archive_ext: zip
             build_gui: 'ON'
             qt_source: 'vcpkg'
           - name: macos-x64
             os: macos-13
             triplet: x64-osx
             msvc_arch: ''
-            archive_ext: tar.gz
             build_gui: 'ON'
             qt_source: 'vcpkg'
           - name: macos-arm64
             os: macos-14
             triplet: arm64-osx
             msvc_arch: ''
-            archive_ext: tar.gz
             build_gui: 'ON'
             qt_source: 'vcpkg'
 
@@ -126,6 +119,13 @@ jobs:
         if: runner.os == 'Windows'
         uses: seanmiddleditch/gha-setup-ninja@v5
 
+      - name: Install pkg-config (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install pkgconfiglite -y --no-progress
+          pkg-config --version
+
       - name: Bootstrap vcpkg
         shell: bash
         run: |
@@ -172,37 +172,27 @@ jobs:
         run: |
           mkdir -p dist
           if [ "$RUNNER_OS" = "Windows" ]; then
-            cp build/media_storage.exe dist/
+            cp build/media_storage.exe "dist/media_storage-${{ matrix.name }}.exe"
             if [ "${{ matrix.build_gui }}" = "ON" ]; then
-              cp build/media_storage_gui.exe dist/
+              cp build/media_storage_gui.exe "dist/media_storage_gui-${{ matrix.name }}.exe"
             fi
           else
-            cp build/media_storage dist/
+            cp build/media_storage "dist/media_storage-${{ matrix.name }}"
             if [ "${{ matrix.build_gui }}" = "ON" ]; then
-              cp build/media_storage_gui dist/
+              cp build/media_storage_gui "dist/media_storage_gui-${{ matrix.name }}"
             fi
           fi
-          cp README.md LICENSE.txt dist/ 2>/dev/null || true
           ls -la dist/
-
-      - name: Archive (zip)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: Compress-Archive -Path dist/* -DestinationPath "media_storage-${{ matrix.name }}.zip"
-
-      - name: Archive (tar.gz)
-        if: runner.os != 'Windows'
-        run: tar -czf "media_storage-${{ matrix.name }}.tar.gz" -C dist .
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: media_storage-${{ matrix.name }}
-          path: media_storage-${{ matrix.name }}.${{ matrix.archive_ext }}
+          path: dist/*
           if-no-files-found: error
 
       - name: Attach to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: media_storage-${{ matrix.name }}.${{ matrix.archive_ext }}
+          files: dist/*
