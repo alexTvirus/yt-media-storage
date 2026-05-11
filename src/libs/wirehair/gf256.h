@@ -60,7 +60,8 @@
 #endif
 
 #if defined(ANDROID) || defined(IOS) || defined(LINUX_ARM) || defined(__powerpc__) || defined(__s390__) \
-    || (defined(__APPLE__) && (defined(__aarch64__) || defined(__ARM_ARCH) || defined(__ARM_NEON) || defined(__ARM_NEON__)))
+    || (defined(__APPLE__) && (defined(__aarch64__) || defined(__ARM_ARCH) || defined(__ARM_NEON) || defined(__ARM_NEON__))) \
+    || (defined(_MSC_VER) && (defined(_M_ARM64) || defined(_M_ARM64EC)))
     #define GF256_TARGET_MOBILE
 #endif // ANDROID
 
@@ -77,7 +78,7 @@
     #include <emmintrin.h> // SSE2
 #endif // GF256_TARGET_MOBILE
 
-#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+#if defined(__ARM_NEON) || defined(__ARM_NEON__) || defined(_M_ARM64) || defined(_M_ARM64EC)
     #include <arm_neon.h>
     #define GF256_TRY_NEON
 #endif
