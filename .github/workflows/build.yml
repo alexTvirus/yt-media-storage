@@ -191,8 +191,67 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
-      - name: Attach to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+  release:
+    name: Publish Release
+    needs: build
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        shell: bash
+        run: ls -la artifacts/
+
+      - name: Compute release metadata
+        id: meta
+        shell: bash
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          COMMIT_SUBJECT=$(git log -1 --pretty=%s)
+          COMMIT_BODY=$(git log -1 --pretty=%b)
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            NAME="$TAG - $COMMIT_SUBJECT"
+            PRERELEASE=false
+          else
+            DATE=$(date -u +'%Y-%m-%d')
+            TAG="build-${DATE}-${SHORT_SHA}"
+            NAME="${DATE} - ${COMMIT_SUBJECT}"
+            PRERELEASE=true
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          {
+            echo "name<<META_EOF"
+            echo "$NAME"
+            echo "META_EOF"
+            echo "body<<META_EOF"
+            echo "Automated build from commit \`$SHORT_SHA\` (${GITHUB_SHA})."
+            echo ""
+            echo "**$COMMIT_SUBJECT**"
+            if [ -n "$COMMIT_BODY" ]; then
+              echo ""
+              echo "$COMMIT_BODY"
+            fi
+            echo "META_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          files: dist/*
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.name }}
+          body: ${{ steps.meta.outputs.body }}
+          prerelease: ${{ steps.meta.outputs.prerelease }}
+          target_commitish: ${{ github.sha }}
+          files: artifacts/**/*
+          fail_on_unmatched_files: true
