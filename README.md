@@ -29,7 +29,7 @@ them back to the original file. Supports both a command-line interface and a gra
 
 ## CI/CD Pipeline
 
-Visit GitHub Actions [CI/CD pipeline](https://github.com/PulseBeat02/yt-media-storage/actions), and click to download
+Visit [GitHub Releases](https://github.com/PulseBeat02/yt-media-storage/releases), and click to download
 artifacts.
 
 ## Requirements
