@@ -130,6 +130,9 @@ Or run the test binary directly for verbose output:
 ```
 ./media_storage encode --input <file> --output <video> [--encrypt --password <pwd>] [--hash <crc32|xxhash>]
 ./media_storage decode --input <video> --output <file> [--password <pwd>]
+
+để giải mã : sử dụng yt-dlp.exe -f bestvideo 
+
 ```
 
 #### Live Streaming (Twitch / YouTube)
